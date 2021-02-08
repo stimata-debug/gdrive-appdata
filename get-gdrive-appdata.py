@@ -214,7 +214,7 @@ def get_master_token(account, password, device_id, target_package):
             token = l.split('=')[1].strip()
             break
 
-    return token;
+    return token
 
 def get_gdrive_credentials(gms_ctx, app_id, app_sig):
     gdrive_token = get_gdrive_access_token(gms_ctx, app_id, app_sig)
@@ -306,18 +306,35 @@ def main():
         results = []
         try:
             results = service.files().list(spaces='appDataFolder', 
-                pageSize=100, fields="nextPageToken, files(id, name)").execute()
+                pageSize=1000, fields="nextPageToken, files(id, name)").execute()
         except googleapiclient.errors.HttpError as e:
             print('Error: %s' % e)
             time.sleep(SLEEP_TIME)
             continue
 
         items = results.get('files', [])
+        nextPageToken = results.get('nextPageToken')
+        # get results of all pages
+        while nextPageToken:
+            print('nextPageToken: ' + nextPageToken)
+            try:
+                results = service.files().list(spaces='appDataFolder',
+                    pageSize=1000, pageToken=nextPageToken, fields="nextPageToken, files(id, name)").execute()
+            except googleapiclient.errors.HttpError as e:
+                print('Error: %s' % e)
+                time.sleep(SLEEP_TIME)
+                continue
+            items.extend(results.get('files', []))
+            nextPageToken = results.get('nextPageToken')
+
+        print()
         if not items:
             print('No files found.')
             print()
             time.sleep(SLEEP_TIME)
         else:
+            print('Total items: ' + str(len(items)))
+
             backup_dir = 'appdata-%s-%s'  % (args.account.replace('@', '_'), str(int(time.time())))
             if not os.path.exists(backup_dir):
                 os.makedirs(backup_dir)
